@@ -1,0 +1,53 @@
+server_name: "${MATRIX_SERVER_NAME}"
+public_baseurl: "${MATRIX_PUBLIC_BASEURL}"
+pid_file: /data/homeserver.pid
+listeners:
+  - port: 8008
+    tls: false
+    type: http
+    x_forwarded: true
+    bind_addresses: ['0.0.0.0']
+    resources:
+      - names: [client, federation]
+        compress: false
+
+database:
+  name: psycopg2
+  args:
+    user: synapse
+    password: "${POSTGRES_PASSWORD}"
+    database: synapse
+    host: postgres
+    cp_min: 5
+    cp_max: 10
+
+log_config: "/data/log.config"
+media_store_path: /data/media_store
+signing_key_path: "/data/${MATRIX_SERVER_NAME}.signing.key"
+report_stats: false
+suppress_key_server_warning: true
+trusted_key_servers: []
+
+enable_registration: false
+registration_shared_secret: "${SYNAPSE_REGISTRATION_SHARED_SECRET}"
+federation_domain_whitelist: []          # federation off
+url_preview_enabled: false
+encryption_enabled_by_default_for_room_type: "off"   # v1: no E2EE
+
+push:
+  include_content: false
+
+app_service_config_files:
+  - /data/appservice-registration.yaml
+
+retention:
+  enabled: true                           # policy values configurable later
+
+# Local dev: appservice/test traffic is not rate limited via AS; keep client limits relaxed
+rc_message:
+  per_second: 10
+  burst_count: 50
+rc_login:
+  address: { per_second: 5, burst_count: 50 }
+  account: { per_second: 5, burst_count: 50 }
+  failed_attempts: { per_second: 5, burst_count: 50 }

@@ -1,0 +1,12 @@
+id: support-backend
+url: "http://backend:${APPSERVICE_PORT}"
+as_token: "${AS_TOKEN}"
+hs_token: "${HS_TOKEN}"
+sender_localpart: ai_agent
+rate_limited: false
+namespaces:
+  users:
+    - { exclusive: true, regex: "@customer_.*:${MATRIX_SERVER_NAME_RE}" }
+    - { exclusive: true, regex: "@svc_admin:${MATRIX_SERVER_NAME_RE}" }
+  aliases: []
+  rooms: []

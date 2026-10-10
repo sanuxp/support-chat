@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Acme — support chat demo</title>
+    <style>
+      body { font-family: Georgia, serif; max-width: 720px; margin: 60px auto; padding: 0 20px; color: #333; }
+      h1 { color: #b45309; }
+    </style>
+  </head>
+  <body>
+    <h1>Acme demo website</h1>
+    <p>This page simulates a customer's site. Its own CSS must not affect the chat widget.</p>
+    <script src="/widget.js"></script>
+    <script>
+      SupportChat.init({ backendUrl: location.origin, authToken: null });
+    </script>
+  </body>
+</html>

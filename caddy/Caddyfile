@@ -1,0 +1,23 @@
+# Local dev. To use a real domain: replace ":8008" with "chat.example.com" (Caddy gets TLS automatically)
+# and set MATRIX_PUBLIC_BASEURL accordingly.
+{
+	auto_https off
+}
+
+:8008 {
+	handle /_matrix/* {
+		reverse_proxy synapse:8008
+	}
+	handle /api/* {
+		reverse_proxy backend:{$BACKEND_PORT}
+	}
+	handle_path /agent/* {
+		root * /srv/agent-ui
+		try_files {path} /index.html
+		file_server
+	}
+	handle {
+		root * /srv/widget
+		file_server
+	}
+}

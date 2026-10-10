@@ -1,0 +1,18 @@
+{
+  // vendor/ holds read-only reference clones (synapse, matrix-js-sdk, matrix-bot-sdk), each with its own .git.
+  // Only treat the project root as a Git repository so Source Control shows one repo.
+  "git.repositoryScanMaxDepth": 0,
+  "git.ignoredRepositories": [
+    "vendor/synapse",
+    "vendor/matrix-js-sdk",
+    "vendor/matrix-bot-sdk"
+  ],
+
+  // keep search results about our code, not the reference clones or build output
+  "search.exclude": {
+    "vendor": true,
+    "**/node_modules": true,
+    "**/dist": true,
+    "data": true
+  }
+}

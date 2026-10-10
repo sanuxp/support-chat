@@ -1,0 +1,72 @@
+name: support-chat
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: synapse
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: synapse
+      # Synapse requires C collation
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U synapse -d synapse"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  synapse:
+    image: matrixdotorg/synapse:v1.162.0
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SYNAPSE_CONFIG_PATH: /data/homeserver.yaml
+    volumes:
+      - ./data/synapse:/data
+    ports:
+      # direct access for scripts/admin API (local only). Browsers go through caddy on :8008.
+      - "127.0.0.1:8009:8008"
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      synapse:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      SYNAPSE_URL: http://synapse:8008
+      DATABASE_URL: postgres://synapse:${POSTGRES_PASSWORD}@postgres:5432/support_backend
+    volumes:
+      - ./backend/config:/app/config
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-3000}:${BACKEND_PORT:-3000}"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [synapse]
+    environment:
+      BACKEND_PORT: ${BACKEND_PORT:-3000}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./widget/dist:/srv/widget:ro
+      - ./agent-ui/dist:/srv/agent-ui:ro
+    ports:
+      - "8008:8008"
+
+  mailpit:
+    image: axllent/mailpit
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8025:8025"   # web inbox
+      - "127.0.0.1:1025:1025"   # SMTP
+
+volumes:
+  pgdata:
