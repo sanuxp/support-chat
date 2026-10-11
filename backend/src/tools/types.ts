@@ -1,3 +1,4 @@
+import type { Profile } from "../customer/profile.js";
 import type { HandoffState } from "../matrix/rooms.js";
 
 export interface Logger {
@@ -8,6 +9,7 @@ export interface Logger {
 export interface ToolContext {
   roomId: string;
   customerRef: string;
+  customer: Profile; // name/email/phone/metadata from the host page (defaults applied). Personal data: never log.
   toolName: string;
   matrix: {
     sendNotice(text: string): Promise<void>;

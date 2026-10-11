@@ -13,7 +13,7 @@ export async function startApi(): Promise<void> {
     try { done(null, body === "" ? {} : JSON.parse(body as string)); }
     catch { done(Object.assign(new Error("Invalid JSON"), { statusCode: 400 }), undefined); }
   });
-  await app.register(cors, { origin: true, methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], allowedHeaders: ["Authorization", "Content-Type"] });
+  await app.register(cors, { origin: true, methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"] }); // no allowedHeaders list: the browser's requested headers (X-Customer-*, custom ones) are reflected
   app.get("/api/health", async () => ({ ok: true }));
   await app.register(customerRoutes);
   await app.register(agentRoutes);

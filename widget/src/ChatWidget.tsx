@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ClientEvent, MatrixEventEvent, RoomEvent, RoomMemberEvent, type MatrixEvent, type Room } from "matrix-js-sdk";
-import { connect, deleteConversation, type Connection } from "./matrixClient";
+import { connect, deleteConversation, type Connection, type CustomerInfo, type CustomerMetadata } from "./matrixClient";
 
-export interface WidgetOptions { backendUrl: string; authToken?: string | null; title?: string }
+export interface WidgetOptions {
+  backendUrl: string;
+  authToken?: string | null; // host-app JWT (CUSTOMER_AUTH_MODE=external_jwt)
+  title?: string;
+  user?: CustomerInfo; // { name, email, phone } of the logged-in person; backend defaults apply to anything missing
+  metadata?: CustomerMetadata; // free-form facts for the AI/agents, e.g. { plan: "pro", orderCount: 3 }
+  customHeaders?: Record<string, string>; // extra headers sent with the session request
+}
 
 interface Line {
   id: string;
@@ -58,13 +65,13 @@ export function ChatWidget({ opts }: { opts: WidgetOptions }) {
     connecting.current = true;
     setError(null);
     try {
-      setConn(await connect(opts.backendUrl, opts.authToken ?? null));
+      setConn(await connect(opts.backendUrl, opts.authToken ?? null, { user: opts.user, metadata: opts.metadata, customHeaders: opts.customHeaders }));
     } catch (e) {
       setError("Could not connect to support. Please try again.");
     } finally {
       connecting.current = false;
     }
-  }, [opts.backendUrl, opts.authToken]);
+  }, [opts]);
 
   // connect lazily on first open
   useEffect(() => { if (open && !conn) void start(); }, [open, conn, start]);

@@ -29,6 +29,8 @@ Tests live in [`../scripts`](../scripts/README.md) (they exercise the running st
 |---|---|
 | `index.ts` | Startup order: DB → load tools (refuse to start if invalid) → watch config (dev) → start AI listener → appservice → REST API → resume waiting chats |
 | `config.ts` | Typed env access; `aiUserId`, `adminUserId` |
+| **`customer/`** | Who the customer is |
+| `customer/profile.ts` | Reads the name/email/phone/metadata the host page sends (headers or verified JWT claims), validates and sanitises them, merges with stored values, applies defaults (`DEFAULT_CUSTOMER_*`), `getProfileByRoom`, and `profileVars` (template variables). **Personal data: never log it** |
 | **`matrix/`** | Everything that talks to Synapse |
 | `matrix/synapse.ts` | The one raw HTTP helper: `synapse(method, path, {token, actAs, body})`. `actAs` adds `?user_id=` to act as an appservice user. Throws `MatrixHttpError(status, errcode)` |
 | `matrix/appservice.ts` | `matrix-bot-sdk` `Appservice` (receives events on :9000). Uses a single-namespace registration view (SDK limitation) |
@@ -68,6 +70,18 @@ Tests live in [`../scripts`](../scripts/README.md) (they exercise the running st
 4. **Tools return, not throw.** Handlers return `{ ok, llmResult }` with a safe message. The core applies `customer_message` and `after`.
 5. **Validate at the edges:** tool arguments are validated with the tool's JSON Schema before the handler runs; visitor ids must be UUIDs; room ownership is checked in Postgres before delete.
 6. New env vars: add to `config.ts` (or read at use), `.env.example` (dummy value), and the root README table.
+
+## Customer profile (name / email / phone / metadata)
+
+`POST /api/customer/session` (`api/customer.ts`) calls `resolveIdentity`, which returns the stable customer reference **and** the profile the page provided (`profileFromHeaders`; in `external_jwt` mode verified claims win via `profileFromClaims`). The session then:
+
+1. merges it with the stored row (`mergeProfile`: provided valid fields replace; missing/invalid keep stored values) and updates `customers` only if something changed;
+2. sets the Matrix display name when the customer is new or the name changed (best effort);
+3. returns `profile` (defaults applied via `resolveProfile`) in the response.
+
+Everywhere else the profile is read with `getProfileByRoom(roomId)`: the AI prompt (`ai/prompt.ts` fills `{{customer_*}}`), tools (`ToolContext.customer`; `profileVars` feeds templates; the webhook payload includes `customer`), and the agent API (`customer` on list/accept). Defaults live in `customer/profile.ts` (`DEFAULT_PROFILE`, overridable by env). CORS reflects whatever request headers the browser asks for, so `X-Customer-*` and custom headers pass preflight.
+
+Full behaviour, limits and privacy notes: root README, "Passing user details from your web page".
 
 ## Adding a custom tool in 3 steps
 

@@ -45,3 +45,7 @@ main { flex: 1; padding: 18px; max-width: 980px; width: 100%; margin: 0 auto; }
 .msg.summary { align-self: stretch; max-width: none; background: #fffbeb; border-color: #fcd34d; }
 .msg.summary .who { color: #b45309; font-weight: 700; }
 .composer { display: flex; gap: 8px; padding: 10px; border-top: 1px solid #e3e8f0; }
+
+.customer-card { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; padding: 8px 14px; border-bottom: 1px solid #e3e8f0; background: #f8fafc; font-size: 13px; }
+.customer-card a { color: #2563eb; text-decoration: none; }
+.chip { background: #e3e8f0; border-radius: 10px; padding: 1px 8px; font-size: 12px; }

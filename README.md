@@ -68,6 +68,82 @@ cd agent-ui && npm run dev     # http://localhost:5174/agent/
 
 Backend/Synapse stay in Docker. After changing backend code: `docker compose up -d --build backend`.
 
+## Passing user details from your web page
+
+The host page can tell the chat who the visitor is, so the AI can greet them by name, human agents see their contact details, and escalation emails/webhooks carry them. Everything is **optional**.
+
+```html
+<script src="https://your-host/widget.js"></script>
+<script>
+  SupportChat.init({
+    backendUrl: "https://your-host",
+    user: {                                  // all three optional
+      name:  "Priya Nair",
+      email: "priya@example.com",
+      phone: "+91 98123 45678"
+    },
+    metadata: { plan: "pro", orders: 3 },    // optional free-form facts (see limits below)
+    customHeaders: { "X-Tenant-Id": "acme" } // optional extra headers sent with the session request
+  });
+</script>
+```
+
+Try it on the demo page: `http://localhost:8008/?name=Priya%20Nair&email=priya%40example.com&phone=%2B919812345678`.
+
+### What is sent
+
+When the widget starts a session it calls `POST /api/customer/session` with these HTTP headers (values are URI-encoded so non-ASCII names work; the backend decodes them):
+
+| Header | Meaning | Accepted if |
+|---|---|---|
+| `X-Customer-Name` | Display name | 1–100 characters |
+| `X-Customer-Email` | Email address | looks like `a@b.c`, ≤ 254 characters |
+| `X-Customer-Phone` | Mobile number | optional `+`, then 6–20 digits/spaces/`()-` |
+| `X-Customer-Meta` | JSON object of extra facts | ≤ 20 keys; key `[A-Za-z0-9_]{1,40}`; value string (≤ 200 chars), number or boolean — anything else is dropped |
+| any header from `customHeaders` | Sent as-is (the backend ignores unknown ones; useful for a gateway/proxy in front of it) | — |
+
+You can also call the endpoint yourself (e.g. from a server or a test):
+
+```bash
+curl -X POST http://localhost:8008/api/customer/session \
+  -H "Content-Type: application/json" \
+  -H "X-Customer-Name: Priya%20Nair" \
+  -H "X-Customer-Email: priya%40example.com" \
+  -H "X-Customer-Phone: %2B919812345678" \
+  -d '{}'
+```
+
+The response includes the resolved `profile: { name, email, phone }`.
+
+### Defaults and update rules
+
+- **Nothing sent, nothing stored yet →** defaults: `Test User`, `testuser@test.com`, `+9876543210`. Override them with `DEFAULT_CUSTOMER_NAME` / `DEFAULT_CUSTOMER_EMAIL` / `DEFAULT_CUSTOMER_PHONE` in `.env`.
+- **A field is sent and valid →** it is stored and replaces the old value.
+- **A field is missing or invalid →** the stored value is kept; if there is none, the default applies. (An invalid email never causes an error; it is just ignored.)
+- **Metadata** replaces the stored metadata whenever a valid `X-Customer-Meta` is sent; otherwise the stored metadata stays.
+- The customer's Matrix display name is set to their name, so agents see "Priya Nair" instead of an id.
+
+### Logged-in users (`CUSTOMER_AUTH_MODE=external_jwt`)
+
+Anyone can set headers from a browser, so in `anonymous` mode these details are **unverified** — fine for greetings and context, wrong for deciding what someone is allowed to see or do. If your site has real logins, use `external_jwt`: pass the JWT as `authToken` and put the details in its signed claims — `name`, `email`, `phone` (or `phone_number`) and `metadata`. Verified claims **override** the headers.
+
+### Where the details show up
+
+| Place | How |
+|---|---|
+| **AI** | `backend/config/prompts/system.md` has a "About the customer" block using `{{customer_name}}`, `{{customer_email}}`, `{{customer_phone}}`, `{{customer_meta}}` (one `key: value` per line). Edit or remove it freely |
+| **Tool messages and templates** (`customer_message`, email subject/body) | `{{customer_name}}`, `{{customer_email}}`, `{{customer_phone}}`, `{{customer_meta}}`, and `{{meta_<key>}}` per metadata key. If a tool has an argument with the same name (e.g. the email the customer confirmed as `customer_email`), the argument wins |
+| **Webhook tools** | The signed payload has `customer: { name, email, phone, metadata }` |
+| **Agent console** | Queue rows show the name; the conversation header shows name, email (mailto), phone (tel) and metadata chips |
+| **`GET /api/agent/conversations`, `POST .../accept`** | Include a `customer` object |
+
+### Privacy notes
+
+- The details are stored in Postgres (`customers.name/email/phone/metadata`), **sent to your LLM provider** as part of the system prompt (remove the "About the customer" block from `system.md` if you don't want that), and may be emailed to your support inbox.
+- They are **never written to the backend logs** (checked by `npm run e2e:profile`). The Matrix display name is visible to anyone in the room and to Synapse admins.
+- Don't put secrets or sensitive data (passwords, card numbers, health data) in `metadata`.
+- To change details after the widget has started, call `SupportChat.destroy()` and `SupportChat.init(...)` again with the new values.
+
 ## Running the tests
 
 ```bash
@@ -76,6 +152,7 @@ npm run smoke-test        # full acceptance test, spec section 10 (about 3 minut
 npm run e2e:escalation    # human hand-off flow only
 npm run e2e:tools         # tool config, reload endpoint, fallback timeout, queue
 npm run e2e:ui            # browser test (needs Microsoft Edge); customer widget + agent console
+npm run e2e:profile       # user details from the host page: headers, defaults, validation, AI, agent API, logs
 ```
 
 The smoke test temporarily edits `backend/config/tools.yaml` (and restores it), creates the `agent_alice` test account, starts a local webhook echo server on port 4010, and closes leftover waiting/assigned conversations first. If `SMTP_HOST=mailpit` it also verifies the email in the Mailpit inbox; with another SMTP server that one check is skipped.
@@ -172,6 +249,7 @@ For Gmail you need 2-Step Verification and an **App Password** (https://myaccoun
 | `AI_HISTORY_MESSAGES` | Messages of history sent to the model (30) |
 | `AI_STREAM_EDIT_INTERVAL_MS` | Minimum gap between streamed message edits (1000) |
 | `COMPANY_NAME` | Value for `{{company_name}}` in prompts |
+| `DEFAULT_CUSTOMER_NAME`, `DEFAULT_CUSTOMER_EMAIL`, `DEFAULT_CUSTOMER_PHONE` | Used when the host page sends no details (`Test User`, `testuser@test.com`, `+9876543210`) |
 | `ENABLE_E2EE` | Hook for later; keep `false` in v1 |
 | `TOOLS_CONFIG_PATH`, `PROMPTS_DIR` | Locations of tool config and prompts |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | Outgoing email |

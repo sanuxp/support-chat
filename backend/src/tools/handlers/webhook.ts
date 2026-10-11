@@ -16,6 +16,7 @@ const webhook: ToolHandler = {
 
     const payload: Record<string, unknown> = {
       tool: ctx.toolName, args, room_id: ctx.roomId, customer_ref: ctx.customerRef,
+      customer: ctx.customer, // { name, email, phone, metadata } from the host page (defaults applied)
     };
     if (o.include_transcript) payload.transcript = await ctx.matrix.getTranscript(200);
     const body = JSON.stringify(payload);

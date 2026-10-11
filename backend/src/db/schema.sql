@@ -21,3 +21,10 @@ CREATE TABLE IF NOT EXISTS agents (
   online boolean NOT NULL DEFAULT false,
   last_seen timestamptz
 );
+
+-- customer profile supplied by the host web page (nullable: defaults are applied when reading)
+ALTER TABLE customers
+  ADD COLUMN IF NOT EXISTS name text,
+  ADD COLUMN IF NOT EXISTS email text,
+  ADD COLUMN IF NOT EXISTS phone text,
+  ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;

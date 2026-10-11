@@ -129,6 +129,7 @@ try {
   check("X-SupportChat-Signature is a valid HMAC of the body", !!call?.signatureValid);
   check("custom header resolved from env (${TICKETS_API_TOKEN})", call?.headers.authorization === `Bearer ${env.TICKETS_API_TOKEN}`);
   check("payload has tool, args, room_id", call?.body?.tool === "create_ticket" && !!call?.body?.args?.title && call?.body?.room_id === c8.roomId);
+  check("payload carries the customer profile (defaults when the page sent none)", call?.body?.customer?.name === "Test User" && call?.body?.customer?.email === "testuser@test.com" && call?.body?.customer?.phone === "+9876543210");
   const seen = await waitFor("AI mentions ticket id", async () => aiTexts(await messages(c8.accessToken, c8.roomId)).find((m) => m.body.includes(`TCK-${MARK}`)), 30000).catch(() => null);
   check("webhook response reached the LLM (AI quotes the ticket id)", !!seen);
   await echo.close(); echo = undefined;

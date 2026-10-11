@@ -144,7 +144,7 @@ Message content flags: a notice with `"com.supportchat.internal": true` is **age
 
 | Table | Columns | Purpose |
 |---|---|---|
-| `customers` | `id uuid`, `external_ref` (unique), `matrix_user_id` (unique) | Maps a visitor / external user to a Matrix user |
+| `customers` | `id uuid`, `external_ref` (unique), `matrix_user_id` (unique), `name`, `email`, `phone` (nullable; defaults applied on read), `metadata jsonb` | Maps a visitor / external user to a Matrix user and keeps the profile the host page sent |
 | `conversations` | `id`, `customer_id`, `room_id` (unique), `status`, `assigned_agent`, `created_at`, `updated_at`, `deleted_at` | Fast queries for routing and the agent queue |
 | `agents` | `matrix_user_id`, `display_name`, `max_concurrent` (3), `online`, `last_seen` | Presence and capacity |
 
@@ -169,11 +169,13 @@ The AI may reply only when status is `ai`, or `escalated_external` **and** that 
 
 ### 6.1 Customer session — `POST /api/customer/session` (`api/customer.ts`)
 
-1. Identify the customer: `anonymous` mode uses a `visitorId` from the widget's `localStorage` (a UUID; generated if missing); `external_jwt` mode verifies a host-app JWT with `EXTERNAL_JWT_PUBLIC_KEY` and uses `sub`. *(The JWT mode is implemented but not covered by the automated tests.)*
+1. Identify the customer **and read the profile the host page sent**: `anonymous` mode uses a `visitorId` from the widget's `localStorage` (a UUID; generated if missing); `external_jwt` mode verifies a host-app JWT with `EXTERNAL_JWT_PUBLIC_KEY` and uses `sub`. *(The JWT mode is implemented but not covered by the automated tests.)*
 2. Upsert the `customers` row; ensure the Matrix user `@customer_<uuid>` exists (appservice registration).
 3. Obtain a Matrix access token with `m.login.application_service` (`matrix/users.ts`) — no password involved — while looking up the customer's open conversation in parallel.
 4. If there is no open conversation, create a room (§5.1), invite and join the customer.
-5. Return `{ homeserverUrl, userId, accessToken, deviceId, roomId, backendToken, visitorId }`. `backendToken` is a 12-hour JWT for the backend's own REST endpoints.
+5. Return `{ homeserverUrl, userId, accessToken, deviceId, roomId, backendToken, visitorId, profile }`. `backendToken` is a 12-hour JWT for the backend's own REST endpoints.
+
+**Customer profile (name / email / phone / metadata).** The widget sends `X-Customer-Name`, `X-Customer-Email`, `X-Customer-Phone` and `X-Customer-Meta` headers (URI-encoded) with the session request; in `external_jwt` mode the verified JWT claims `name`, `email`, `phone`, `metadata` win. `customer/profile.ts` validates each field (invalid = ignored), merges with the stored row (sent+valid replaces; otherwise keep stored; otherwise default `Test User` / `testuser@test.com` / `+9876543210`, overridable via `DEFAULT_CUSTOMER_*`), saves it to `customers`, and sets the customer's Matrix display name. The profile is then available as `getProfileByRoom(roomId)` to: the AI system prompt (`{{customer_name}}` … in `system.md`), tools (`ctx.customer`, template variables, webhook payload `customer`), and the agent API/console. In `anonymous` mode these values are unverified and must never be used for authorization. Details and limits: root README, "Passing user details from your web page".
 
 The widget then talks **directly to Synapse** with the access token (sending/receiving messages), and to the backend only for session and delete.
 
@@ -231,10 +233,10 @@ All JSON. Browsers reach it through Caddy at `/api/*`.
 | Method & path | Auth | Purpose |
 |---|---|---|
 | `GET /api/health` | none | Liveness |
-| `POST /api/customer/session` | none (anonymous) or host-app JWT | Create/resume session (§6.1) |
+| `POST /api/customer/session` | none (anonymous) or host-app JWT | Create/resume session (§6.1). Optional headers: `X-Customer-Name`, `X-Customer-Email`, `X-Customer-Phone`, `X-Customer-Meta` (URI-encoded) |
 | `DELETE /api/customer/conversations/:roomId` | `Bearer <backendToken>` | Delete own conversation |
 | `POST /api/agent/presence` `{online}` | `Bearer <agent Matrix token>` | Online/offline + heartbeat |
-| `GET /api/agent/conversations` | agent token | My assigned + waiting conversations |
+| `GET /api/agent/conversations` | agent token | My assigned + waiting conversations (each with a `customer` object) |
 | `POST /api/agent/conversations/:roomId/accept` | agent token | Take a waiting chat / re-invite myself |
 | `POST /api/agent/conversations/:roomId/resolve` `{returnToAi}` | agent token | Hand back to AI (default) or close |
 | `POST /api/admin/reload-config` | `Bearer <ADMIN_API_TOKEN>` | Reload `tools.yaml` + prompts |
@@ -247,7 +249,8 @@ Agent auth: the token is verified with Synapse `GET /account/whoami` (cached 30 
 - **Customers** hold a Matrix token limited to their own room and a short-lived backend JWT. They cannot change hand-off state (power levels).
 - **Agents** are normal password accounts, created only by someone with the Synapse shared secret. Only `@agent_*` users are accepted by the agent API.
 - **Admin API exposure:** Synapse's admin API is not behind Caddy; it is reachable only on `127.0.0.1:8009`.
-- **Logging rule (important):** never log message bodies, LLM prompts/responses, tool arguments, or email addresses. Log ids, tool names, timings, token counts, and error *classes*. The smoke test greps the logs for unique marker strings to enforce this. When adding code, follow it — including in `catch` blocks (error text can echo content).
+- **Logging rule (important):** never log message bodies, LLM prompts/responses, tool arguments, email addresses, or customer profile values (name, email, phone, metadata). Log ids, tool names, timings, token counts, and error *classes*. The smoke test greps the logs for unique marker strings to enforce this. When adding code, follow it — including in `catch` blocks (error text can echo content).
+- **Customer details are unverified in `anonymous` mode** (any visitor can send any header). Use them for greetings and context only; use `external_jwt` with signed claims when identity matters. They are stored in Postgres, sent to the LLM in the system prompt, and visible to Synapse admins as the display name.
 - **Known limitation:** the agent-only summary lives in the shared room. A customer using the raw Matrix API could read it. See SDLC D20.
 - **Webhook authenticity:** receivers must verify `X-SupportChat-Signature` against the raw body.
 
@@ -291,6 +294,7 @@ curl -s "http://localhost:8009/_matrix/client/v3/rooms/<urlencoded room id>/stat
 | `npm run e2e:escalation` | Human hand-off flow (15 checks) |
 | `npm run e2e:tools` | Reload auth, config validation, custom tool, queue, fallback (13 checks) |
 | `npm run e2e:ui` | Browser test: customer widget + agent console in headless Edge |
+| `npm run e2e:profile` | User details from the host page (12 checks): defaults, validation, persistence, display name, CORS, AI, agent API, logs |
 
 Notes: tests call the real LLM, so LLM-dependent steps can occasionally be flaky; the scripts phrase requests explicitly and retry where sensible. They temporarily edit `backend/config/tools.yaml` (restored in `finally`) and close leftover waiting/assigned conversations first — **unresolved test chats fill an agent's `max_concurrent`** and make later runs hang in the queue.
 
@@ -309,6 +313,7 @@ Notes: tests call the real LLM, so LLM-dependent steps can occasionally be flaky
 - **A new tool using existing handlers:** edit `tools.yaml` + a prompt file (worked example in the root README).
 - **A new custom tool:** `backend/src/tools/custom/<name>.ts` default-exporting a `ToolHandler`; see `example.ts`; reference with `handler: custom, module: <name>`; restart the backend.
 - **A new built-in handler type:** add `handlers/<x>.ts`, add the name to the enum in `tools/registry.ts` (`ToolSchema`) and to the handler selection in `build()`.
+- **A new customer field from the host page:** add the column in `db/schema.sql` (`ADD COLUMN IF NOT EXISTS`), a `sanitize…` function and entries in `profileFromHeaders`/`profileFromClaims`/`mergeProfile`/`resolveProfile`/`profileVars` in `customer/profile.ts`, a header in `widget/src/matrixClient.ts`, and the agent-ui `CustomerInfo` type. Remember: never log it.
 - **A new REST endpoint:** add to a file in `api/`, register in `api/server.ts`; authenticate with `verifyBackendToken` (customer) or `authenticateAgent` (agent).
 - **A new hand-off status:** extend `HandoffStatus` in `matrix/rooms.ts`, update `aiMayReply`, the widget/console rendering, and the status diagram above.
 

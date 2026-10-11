@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { readPromptFile } from "../../ai/prompt.js";
+import { profileVars } from "../../customer/profile.js";
 import { renderTemplate } from "../template.js";
 import type { ToolHandler } from "../types.js";
 
@@ -30,7 +31,8 @@ const email: ToolHandler = {
     if (!o.to?.length) return { ok: false, llmResult: { sent: false, error: "No email recipient is configured" } };
 
     const transcript = o.include_transcript ? await ctx.matrix.getTranscript(200) : "";
-    const vars = { ...args, room_id: ctx.roomId, customer_ref: ctx.customerRef, transcript };
+    // profile variables first, so an explicit tool argument (e.g. customer_email the customer confirmed) wins
+    const vars = { ...profileVars(ctx.customer), ...args, room_id: ctx.roomId, customer_ref: ctx.customerRef, transcript };
     const subject = oneLine(renderTemplate(o.subject_template ?? "[Chat escalation] {{reason}}", vars));
     const body = renderTemplate(
       o.body_template_file

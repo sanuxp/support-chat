@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { getProfileByRoom, resolveProfile, storedFromRow } from "../customer/profile.js";
 import { pool } from "../db/db.js";
 import { getHandoff } from "../matrix/rooms.js";
 import {
@@ -27,9 +28,10 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
     const { userId } = await authenticateAgent(req);
     const rows = (
       await pool.query(
-        `SELECT room_id, status, assigned_agent, updated_at FROM conversations
-          WHERE deleted_at IS NULL AND (status='waiting' OR (status='assigned' AND assigned_agent=$1))
-          ORDER BY updated_at ASC`,
+        `SELECT c.room_id, c.status, c.assigned_agent, c.updated_at, cu.name, cu.email, cu.phone, cu.metadata
+           FROM conversations c JOIN customers cu ON cu.id = c.customer_id
+          WHERE c.deleted_at IS NULL AND (c.status='waiting' OR (c.status='assigned' AND c.assigned_agent=$1))
+          ORDER BY c.updated_at ASC`,
         [userId],
       )
     ).rows;
@@ -38,6 +40,7 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
       return {
         roomId: r.room_id, status: r.status, assignedAgent: r.assigned_agent,
         reason: h?.reason ?? null, summary: h?.summary ?? null, updatedAt: r.updated_at,
+        customer: resolveProfile(storedFromRow(r)),
       };
     }));
     return { conversations: out };
@@ -48,7 +51,7 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
     const conv = await findConversation(req.params.roomId);
     if (conv.status === "assigned" && conv.assigned_agent === userId) {
       await ensureInvited(conv.room_id, userId); // re-invite if the agent isn't in the room yet
-      return { status: "assigned" };
+      return { status: "assigned", customer: await getProfileByRoom(conv.room_id) };
     }
     if (conv.status === "waiting") {
       const r = await assignToAgent(conv.room_id, userId);
@@ -58,11 +61,11 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
         const now = await findConversation(conv.room_id);
         if (now.status === "assigned" && now.assigned_agent === userId) {
           await ensureInvited(conv.room_id, userId);
-          return { status: "assigned" };
+          return { status: "assigned", customer: await getProfileByRoom(conv.room_id) };
         }
         throw httpError(409, "Conversation was just taken by someone else");
       }
-      return { status: "assigned" };
+      return { status: "assigned", customer: await getProfileByRoom(conv.room_id) };
     }
     throw httpError(403, "Conversation is not available to you");
   });

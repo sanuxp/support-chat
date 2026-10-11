@@ -2,10 +2,12 @@ import { randomUUID } from "node:crypto";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import jwt from "jsonwebtoken";
 import { config } from "../config.js";
+import { resolveProfile, mergeProfile, profileFromClaims, profileFromHeaders, sameProfile, storedFromRow, type ProvidedProfile } from "../customer/profile.js";
 import { pool } from "../db/db.js";
 import { purgeRoom } from "../matrix/admin.js";
 import { createConversationRoom } from "../matrix/rooms.js";
 import { clearFallback } from "../routing/handoff.js";
+import { enc, synapse } from "../matrix/synapse.js";
 import { ensureUser, loginAs, mxid } from "../matrix/users.js";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -26,22 +28,33 @@ export function httpError(statusCode: number, message: string) {
   return Object.assign(new Error(message), { statusCode });
 }
 
-/** Resolve the stable external reference + visitorId for this request, per CUSTOMER_AUTH_MODE. */
-function resolveIdentity(req: FastifyRequest): { externalRef: string; visitorId?: string } {
+/**
+ * Resolve the stable external reference, visitorId and the host-supplied profile for this request,
+ * per CUSTOMER_AUTH_MODE. In external_jwt mode verified JWT claims win over headers.
+ */
+function resolveIdentity(req: FastifyRequest): { externalRef: string; visitorId?: string; provided: ProvidedProfile } {
+  const fromHeaders = profileFromHeaders(req.headers);
   if (config.customerAuthMode === "external_jwt") {
     const h = req.headers.authorization ?? "";
     if (!h.startsWith("Bearer ")) throw httpError(401, "Missing host-app JWT");
     try {
       const claims = jwt.verify(h.slice(7), config.externalJwtPublicKey) as jwt.JwtPayload;
       if (!claims.sub) throw new Error("no sub");
-      return { externalRef: `ext:${claims.sub}` };
+      const fromClaims = profileFromClaims(claims);
+      const provided: ProvidedProfile = {
+        name: fromClaims.name ?? fromHeaders.name,
+        email: fromClaims.email ?? fromHeaders.email,
+        phone: fromClaims.phone ?? fromHeaders.phone,
+        metadata: fromClaims.metadata ?? fromHeaders.metadata,
+      };
+      return { externalRef: `ext:${claims.sub}`, provided };
     } catch {
       throw httpError(401, "Invalid host-app JWT");
     }
   }
   const body = (req.body ?? {}) as { visitorId?: string };
   const visitorId = body.visitorId && UUID_RE.test(body.visitorId) ? body.visitorId : randomUUID();
-  return { externalRef: `anon:${visitorId}`, visitorId };
+  return { externalRef: `anon:${visitorId}`, visitorId, provided: fromHeaders };
 }
 
 export async function customerRoutes(app: FastifyInstance): Promise<void> {
@@ -62,10 +75,12 @@ export async function customerRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post("/api/customer/session", async (req) => {
-    const { externalRef, visitorId } = resolveIdentity(req);
+    const { externalRef, visitorId, provided } = resolveIdentity(req);
 
     // customer row (stable per external_ref)
-    let customer = (await pool.query("SELECT id, matrix_user_id FROM customers WHERE external_ref=$1", [externalRef])).rows[0];
+    const COLS = "id, matrix_user_id, name, email, phone, metadata";
+    let customer = (await pool.query(`SELECT ${COLS} FROM customers WHERE external_ref=$1`, [externalRef])).rows[0];
+    let created = false;
     if (!customer) {
       const id = randomUUID();
       const matrixUserId = mxid(`customer_${id}`);
@@ -73,17 +88,36 @@ export async function customerRoutes(app: FastifyInstance): Promise<void> {
         await pool.query(
           `INSERT INTO customers (id, external_ref, matrix_user_id) VALUES ($1,$2,$3)
            ON CONFLICT (external_ref) DO UPDATE SET external_ref = EXCLUDED.external_ref
-           RETURNING id, matrix_user_id`,
+           RETURNING ${COLS}`,
           [id, externalRef, matrixUserId],
         )
       ).rows[0];
+      created = true;
     }
     const localpart = (customer.matrix_user_id as string).slice(1).split(":")[0];
 
+    // merge what the host page sent with what we stored; unsent fields keep their stored value
+    const before = storedFromRow(customer);
+    const merged = mergeProfile(before, provided);
+    const profile = resolveProfile(merged);
+    const changed = !sameProfile(before, merged);
+    if (changed) {
+      await pool.query("UPDATE customers SET name=$2, email=$3, phone=$4, metadata=$5 WHERE id=$1", [
+        customer.id, merged.name, merged.email, merged.phone, JSON.stringify(merged.metadata),
+      ]);
+    }
+
     await ensureUser(localpart);
-    // issuing a token and looking up the open conversation are independent
-    const [login, open] = await Promise.all([
+    // show the customer's name (not the uuid) to agents: set it when new or when the name changed
+    const nameChanged = created || merged.name !== before.name;
+    // issuing a token, the display name and the open-conversation lookup are independent
+    const [login, , open] = await Promise.all([
       loginAs(localpart),
+      nameChanged
+        ? synapse("PUT", `/_matrix/client/v3/profile/${enc(customer.matrix_user_id)}/displayname`, {
+            actAs: customer.matrix_user_id, body: { displayname: profile.name },
+          }).catch(() => {}) // cosmetic: never block the session on it
+        : Promise.resolve(),
       pool.query(
         `SELECT room_id FROM conversations
          WHERE customer_id=$1 AND deleted_at IS NULL AND status <> 'closed'
@@ -111,6 +145,7 @@ export async function customerRoutes(app: FastifyInstance): Promise<void> {
       accessToken: login.accessToken,
       deviceId: login.deviceId,
       roomId: conv.room_id,
+      profile: { name: profile.name, email: profile.email, phone: profile.phone },
       backendToken,
     };
   });

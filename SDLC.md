@@ -32,6 +32,10 @@ See `SUPPORT_CHAT_SPEC.md` (sections 0-11). Out of scope for v1: E2EE, media, vo
 | D19 | `accept` treats "already assigned to me" as success | A queue row can be stale by one poll when the backend assigned it to the same agent |
 | D20 | Customer-facing `m.notice` for "nobody available" is a normal notice; agent-only summary is a notice with `com.supportchat.internal: true` (customer widget hides it, agent console highlights it). Note: a customer using the raw Matrix API could still read the summary of their own conversation | Same-room design from the spec |
 | D26 | Backend and scripts use asynchronous I/O only (`fs/promises`, async child processes); independent awaits run with `Promise.all` (prompt loading, typing + history, session login + conversation lookup, startup timer re-arming) | Don't block the event loop on the request path; lower latency per AI turn |
+| D27 | Host page passes the visitor's name/email/phone/metadata to the widget (`user`, `metadata`, `customHeaders` options) which sends them as `X-Customer-*` headers (URI-encoded) on the session request. Defaults `Test User` / `testuser@test.com` / `+9876543210` (env-overridable). Invalid values are ignored, never an error; missing values keep the stored value | Requested feature; headers are the simplest cross-origin channel from a plain script tag |
+| D28 | In `external_jwt` mode verified JWT claims override headers; in `anonymous` mode the values are explicitly **unverified** | Browser headers can be forged; identity-sensitive use needs signed claims |
+| D29 | Profile is stored on `customers` (nullable columns + jsonb metadata, defaults applied on read), the Matrix display name is set to the name, and PII is kept out of room state and logs | Agents see names, not ids; avoids plaintext PII in state events (also keeps a later E2EE move simpler) |
+| D30 | CORS no longer lists allowed request headers; the browser's requested headers are reflected | Host pages may send arbitrary `customHeaders` |
 | D21 | Email and webhook handlers are stubs until milestone 9 | Spec milestone order |
 | D22 | SMTP is entirely env-driven (`SMTP_HOST/PORT/SECURE/USER/PASSWORD/FROM`); compose no longer hardcodes Mailpit values. TLS is required whenever a user is set. Gmail needs an App Password | User wants Gmail now and other providers later |
 | D23 | Escalation recipient comes from `SUPPORT_EMAIL_TO` via `${VAR}` in tools.yaml | Avoid sending test mail to `example.com` when using a real SMTP account |
@@ -72,6 +76,7 @@ Acceptance = `scripts/smoke-test.ts` (spec section 10). Per-milestone checks are
 ## 7. Change log
 - 2026-10-12: Milestone 1 completed; document created.
 - 2026-10-12: Milestones 2-3 completed (appservice, customer session).
+- 2026-10-13: Customer profile from the host page (D27-D30): widget options, backend validation/storage/defaults, AI prompt + tool template variables + webhook payload, agent console customer card, `npm run e2e:profile` (12 checks pass) and a browser check; docs updated.
 - 2026-10-12: Async refactor (D26, smoke test re-run: passed). Documentation added: `docs/DEVELOPER_GUIDE.md` plus README in backend, widget, agent-ui, scripts and synapse.
 - 2026-10-12: Milestones 9-11 completed (email + webhook handlers, customer delete, smoke test, README). Env-driven SMTP for Gmail (D22). v1 feature-complete; smoke test passes.
 - 2026-10-12: Milestones 6-8 completed (agents + Agent UI, tool system, human-chat escalation). Fixed: duplicate assignment race, widget "Agent joined" detection, empty-JSON-body rejection, duplicate AI text after pause_ai tools.

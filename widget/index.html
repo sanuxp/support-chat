@@ -11,7 +11,11 @@
     <p>The chat bubble is at the bottom right. Backend/Synapse are reached via Caddy on :8008.</p>
     <script type="module" src="/src/embed.ts"></script>
     <script type="module">
-      window.SupportChat.init({ backendUrl: "http://localhost:8008", authToken: null });
+      window.SupportChat.init({
+        backendUrl: "http://localhost:8008",
+        authToken: null,
+        user: { name: "Dev User", email: "dev.user@example.com", phone: "+919800000000" }, // all optional
+      });
     </script>
   </body>
 </html>

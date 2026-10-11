@@ -8,6 +8,7 @@ import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 import type { PromptTool } from "../ai/prompt.js";
 import { getTranscript, sendMessage } from "../matrix/messages.js";
+import { getProfileByRoom, profileVars } from "../customer/profile.js";
 import { getCustomerRef, getHandoff } from "../matrix/rooms.js";
 import { updateHandoff } from "../routing/handoff.js";
 import emailHandler from "./handlers/email.js";
@@ -203,9 +204,9 @@ export async function executeTool(
     return { ok: false, llmResult: { error: "Invalid arguments", problems } };
   }
 
-  const customerRef = await getCustomerRef(roomId);
+  const [customerRef, customer] = await Promise.all([getCustomerRef(roomId), getProfileByRoom(roomId)]);
   const ctx: ToolContext = {
-    roomId, customerRef, toolName: name,
+    roomId, customerRef, customer, toolName: name,
     matrix: {
       sendNotice: async (text) => { await sendMessage(roomId, text, "m.notice"); },
       getTranscript: (limit) => getTranscript(roomId, limit),
@@ -231,7 +232,7 @@ export async function executeTool(
 
   const tpl = res.customerMessage ?? tool.def.customer_message;
   if (tpl) {
-    await sendMessage(roomId, renderTemplate(tpl, { ...args, room_id: roomId, customer_ref: customerRef }));
+    await sendMessage(roomId, renderTemplate(tpl, { ...profileVars(customer), ...args, room_id: roomId, customer_ref: customerRef }));
   }
   await applyAfter(roomId, name, tool.def.after);
   // pause_ai / close: the AI must not add more text this turn (it would duplicate customer_message)

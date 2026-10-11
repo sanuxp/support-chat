@@ -8,20 +8,24 @@ export const HS = process.env.HS ?? "http://localhost:8008";
 export const enc = encodeURIComponent;
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export async function json(method: string, url: string, token?: string, body?: unknown): Promise<any> {
+export async function json(method: string, url: string, token?: string, body?: unknown, extraHeaders: Record<string, string> = {}): Promise<any> {
   const res = await fetch(url, {
     method,
-    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    headers: { "Content-Type": "application/json", ...extraHeaders, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const data: any = await res.json().catch(() => ({}));
   return { ...data, _http: res.status }; // _http = HTTP status (response bodies may have their own `status` field)
 }
 
-export interface Customer { userId: string; accessToken: string; roomId: string; backendToken: string; visitorId: string }
+export interface Customer {
+  userId: string; accessToken: string; roomId: string; backendToken: string; visitorId: string;
+  profile: { name: string; email: string; phone: string };
+}
 
-export async function newCustomer(visitorId?: string): Promise<Customer> {
-  const s = await json("POST", `${API}/api/customer/session`, undefined, visitorId ? { visitorId } : {});
+/** Create a customer session. `headers` simulates what the widget sends (X-Customer-Name, ...; values URI-encoded). */
+export async function newCustomer(visitorId?: string, headers: Record<string, string> = {}): Promise<Customer> {
+  const s = await json("POST", `${API}/api/customer/session`, undefined, visitorId ? { visitorId } : {}, headers);
   if (s._http !== 200) throw new Error(`session failed: ${s._http}`);
   return s as Customer;
 }

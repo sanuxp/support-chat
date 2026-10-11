@@ -25,9 +25,34 @@ const safeStorage = {
   set: (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* ignore */ } },
 };
 
-export async function createSession(backendUrl: string, authToken: string | null): Promise<SessionInfo> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+/** Details about the person, supplied by the host web page. All optional; the backend applies defaults. */
+export interface CustomerInfo { name?: string; email?: string; phone?: string }
+export type CustomerMetadata = Record<string, string | number | boolean>;
+
+export interface SessionExtras {
+  user?: CustomerInfo;
+  metadata?: CustomerMetadata;
+  /** Extra HTTP headers sent verbatim with the session request (e.g. for a gateway in front of the backend). */
+  customHeaders?: Record<string, string>;
+}
+
+// HTTP header values are Latin-1 only, so values are URI-encoded (the backend decodes them).
+const enc = (v: string) => encodeURIComponent(v);
+
+export function sessionHeaders(authToken: string | null, extras: SessionExtras = {}): Record<string, string> {
+  // custom headers first, so the widget's own headers (Content-Type, Authorization, X-Customer-*) always win
+  const headers: Record<string, string> = { ...(extras.customHeaders ?? {}), "Content-Type": "application/json" };
   if (authToken) headers.Authorization = `Bearer ${authToken}`;
+  const u = extras.user ?? {};
+  if (u.name) headers["X-Customer-Name"] = enc(u.name);
+  if (u.email) headers["X-Customer-Email"] = enc(u.email);
+  if (u.phone) headers["X-Customer-Phone"] = enc(u.phone);
+  if (extras.metadata && Object.keys(extras.metadata).length) headers["X-Customer-Meta"] = enc(JSON.stringify(extras.metadata));
+  return headers;
+}
+
+export async function createSession(backendUrl: string, authToken: string | null, extras: SessionExtras = {}): Promise<SessionInfo> {
+  const headers = sessionHeaders(authToken, extras);
   const res = await fetch(`${backendUrl}/api/customer/session`, {
     method: "POST",
     headers,
@@ -39,8 +64,8 @@ export async function createSession(backendUrl: string, authToken: string | null
   return s;
 }
 
-export async function connect(backendUrl: string, authToken: string | null): Promise<Connection> {
-  const session = await createSession(backendUrl, authToken);
+export async function connect(backendUrl: string, authToken: string | null, extras: SessionExtras = {}): Promise<Connection> {
+  const session = await createSession(backendUrl, authToken, extras);
   const client = createClient({
     baseUrl: session.homeserverUrl,
     accessToken: session.accessToken,

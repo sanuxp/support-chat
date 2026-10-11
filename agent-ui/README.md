@@ -9,7 +9,7 @@ Big picture: [`../docs/DEVELOPER_GUIDE.md`](../docs/DEVELOPER_GUIDE.md).
 1. Create an account once: from the repo root, `npm run create-agent -- alice 'password' 'Alice'` (becomes `@agent_alice:chat.local`).
 2. Open http://localhost:8008/agent/ and sign in as `agent_alice`.
 3. Click **Offline → Online**. Only online agents are assigned conversations.
-4. Click a conversation, read the highlighted **AI summary**, reply. Finish with **Resolve → back to AI** or **Resolve & close**.
+4. Click a conversation. The header shows who you are talking to (name, email, phone and any metadata the website sent); read the highlighted **AI summary**, then reply. Finish with **Resolve → back to AI** or **Resolve & close**.
 
 ## Develop and build
 
@@ -30,8 +30,8 @@ Vite `base` is `/agent/` in dev and build. In production the console is on the s
 | `main.tsx` | React entry |
 | `App.tsx` | Session, Matrix client lifecycle, **presence heartbeat** (`POST /api/agent/presence` every 30 s while Online), queue refresh (5 s poll + refetch on any `com.supportchat.handoff` state change), sign-out |
 | `Login.tsx` | Username/password form |
-| `Queue.tsx` | "My conversations" and "Waiting" lists with reason + AI summary preview |
-| `ConversationView.tsx` | Opens a conversation: `accept` → `joinRoom` → paginate back through history → live timeline → send box → resolve buttons |
+| `Queue.tsx` | "My conversations" and "Waiting" lists: customer name, reason and AI summary preview (also exports the `CustomerInfo` type) |
+| `ConversationView.tsx` | Shows the customer card (from the `accept` response). Opens a conversation: `accept` → `joinRoom` → paginate back through history → live timeline → send box → resolve buttons |
 | `matrixClient.ts` | `login` (`m.login.password`), `startClient`, session persistence in `localStorage`, auto-join of invites, `api()` helper that calls the backend with the agent's Matrix token |
 | `styles.css` | Styling |
 

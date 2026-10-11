@@ -6,6 +6,7 @@ import { getHandoff } from "../matrix/rooms.js";
 import { updateHandoff } from "../routing/handoff.js";
 import { executeTool, getTools, toolAfter } from "../tools/registry.js";
 import { streamCompletion } from "./llm.js";
+import { getProfileByRoom } from "../customer/profile.js";
 import { buildSystemPrompt } from "./prompt.js";
 import { StreamingMessage } from "./streaming.js";
 
@@ -50,11 +51,12 @@ async function handleCustomerMessage(roomId: string, eventId: string): Promise<v
     typingTimer = setInterval(() => setTyping(roomId, true), 20000);
     const tools = getTools();
     // typing indicator, history and prompt files are independent: do them concurrently
-    const [, history, systemPrompt] = await Promise.all([
+    const [, history, profile] = await Promise.all([
       setTyping(roomId, true),
       getHistory(roomId, HISTORY()),
-      buildSystemPrompt(tools.promptTools),
+      getProfileByRoom(roomId),
     ]);
+    const systemPrompt = await buildSystemPrompt(tools.promptTools, profile);
     const messages: ChatCompletionMessageParam[] = [{ role: "system", content: systemPrompt }];
     if (handoff.ai_note) messages.push({ role: "system", content: handoff.ai_note });
     for (const m of history) {

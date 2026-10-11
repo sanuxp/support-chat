@@ -10,6 +10,7 @@ Run from the **repo root** (`npm install` once there). Host requirements: Node 2
 | `e2e-escalation.ts` | `npm run e2e:escalation` | Human hand-off flow only (15 checks) |
 | `e2e-tools.ts` | `npm run e2e:tools` | `reload-config` auth + validation, custom tool through the LLM, queue, fallback timeout, queue pickup (13 checks) |
 | `ui-e2e.mjs` | `npm run e2e:ui` | Browser test with Playwright + Microsoft Edge: agent signs in and goes online, customer asks for a human in the widget, agent takes it, replies, resolves |
+| `e2e-profile.ts` | `npm run e2e:profile` | User details from the host page (12 checks): defaults, headers incl. non-ASCII, validation/fallback, persistence rules, metadata limits, Matrix display name, CORS preflight for custom headers, AI uses the name, agent API returns the customer, no personal data in logs |
 | `echo-server.ts` | `npx tsx scripts/echo-server.ts` | Local webhook receiver on :4010 that verifies the HMAC signature and returns a fake ticket. Also imported by the smoke test |
 | `lib.ts` | (library) | Test helpers: `json`, `newCustomer`, `say`, `messages` (edits applied), `handoff`, `waitFor`, `agentLogin`, `setPresence`, `check`, `run` (async child process), `resetQueue` |
 | `env.ts` | (library) | Async `.env` reader for host scripts (handles inline comments/quotes) |

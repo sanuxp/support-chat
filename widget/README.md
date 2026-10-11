@@ -12,11 +12,27 @@ Big picture: [`../docs/DEVELOPER_GUIDE.md`](../docs/DEVELOPER_GUIDE.md).
   SupportChat.init({
     backendUrl: "https://your-host",   // where /api/* and Matrix are served (Caddy origin)
     authToken: null,                   // host-app JWT when the backend runs CUSTOMER_AUTH_MODE=external_jwt
-    title: "Support"                   // optional header text
+    title: "Support",                  // optional header text
+    user: { name: "Priya Nair", email: "priya@example.com", phone: "+91 98123 45678" }, // optional
+    metadata: { plan: "pro" },         // optional free-form facts for the AI and agents
+    customHeaders: { "X-Tenant-Id": "acme" } // optional extra headers sent with the session request
   });
   // SupportChat.destroy() removes it
 </script>
 ```
+
+### Options
+
+| Option | Required | Meaning |
+|---|---|---|
+| `backendUrl` | yes | Origin that serves `/api/*` and the Matrix homeserver (the Caddy origin) |
+| `authToken` | no | Host-app JWT, sent as `Authorization: Bearer …` (backend `CUSTOMER_AUTH_MODE=external_jwt`) |
+| `title` | no | Header text of the chat panel |
+| `user` | no | `{ name?, email?, phone? }`. Sent as `X-Customer-Name`, `X-Customer-Email`, `X-Customer-Phone` (URI-encoded). Missing fields: the backend applies `Test User` / `testuser@test.com` / `+9876543210` |
+| `metadata` | no | Flat object (string/number/boolean values), sent as `X-Customer-Meta` (URI-encoded JSON) |
+| `customHeaders` | no | Extra headers sent verbatim with the session request. They can't override `Content-Type`/`Authorization`/`X-Customer-*` set by the options above |
+
+The headers go only to `POST /api/customer/session` (made once when the bubble is first opened, and again after "Delete"/"Start a new conversation"). Validation, defaults, update rules and privacy notes are in the root README under "Passing user details from your web page". In `anonymous` mode these values are **unverified** (any visitor can fake them); use `external_jwt` with signed claims when identity matters. To change details after startup, call `SupportChat.destroy()` then `SupportChat.init(...)`.
 
 `init` is idempotent. `public/index.html` is a demo host page (deliberately styled with a serif font to prove CSS isolation); it is copied into `dist/` and served at `http://localhost:8008/`.
 
@@ -40,7 +56,7 @@ Build-time flag: `VITE_ENABLE_E2EE=true` makes `connect()` call `client.initRust
 |---|---|
 | `embed.ts` | Public entry. Creates the host element + shadow root, injects `widget.css` (imported with `?inline`), mounts React, exposes `window.SupportChat` |
 | `ChatWidget.tsx` | The whole UI and state: open/close, lazy connect on first open, message list, send, typing indicator, hand-off status banners, delete-with-confirm, "new conversation" after close |
-| `matrixClient.ts` | `createSession` (calls `POST /api/customer/session`, persists `visitorId` in `localStorage`), `connect` (creates the Matrix client with the issued token and waits for the first sync), `deleteConversation` |
+| `matrixClient.ts` | `sessionHeaders` (builds the `X-Customer-*` headers), `createSession` (calls `POST /api/customer/session`, persists `visitorId` in `localStorage`), `connect` (creates the Matrix client with the issued token and waits for the first sync), `deleteConversation` |
 | `widget.css` | Styles (scoped by the shadow root) |
 | `env.d.ts` | Vite and `?inline` typings |
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ClientEvent, MatrixEventEvent, RoomEvent, type MatrixClient, type Room } from "matrix-js-sdk";
+import type { CustomerInfo } from "./Queue";
 import { api } from "./matrixClient";
 
 const INTERNAL = "com.supportchat.internal";
@@ -33,6 +34,7 @@ export function ConversationView({
   const [ready, setReady] = useState(false);
   const [ended, setEnded] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [customer, setCustomer] = useState<CustomerInfo | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const me = client.getUserId() ?? "";
 
@@ -41,7 +43,8 @@ export function ConversationView({
     let cancelled = false;
     (async () => {
       try {
-        await api(token, "POST", `/api/agent/conversations/${encodeURIComponent(roomId)}/accept`);
+        const acc = await api<{ customer?: CustomerInfo }>(token, "POST", `/api/agent/conversations/${encodeURIComponent(roomId)}/accept`);
+        if (!cancelled && acc.customer) setCustomer(acc.customer);
         await client.joinRoom(roomId);
         let room = client.getRoom(roomId);
         for (let i = 0; i < 20 && !room; i++) { await new Promise((r) => setTimeout(r, 250)); room = client.getRoom(roomId); }
@@ -106,6 +109,16 @@ export function ConversationView({
         <button disabled={busy || ended} onClick={() => resolve(true)}>Resolve → back to AI</button>
         <button className="secondary" disabled={busy || ended} onClick={() => resolve(false)}>Resolve &amp; close</button>
       </header>
+      {customer && (
+        <div className="customer-card">
+          <strong>{customer.name}</strong>
+          <a href={`mailto:${customer.email}`}>{customer.email}</a>
+          <a href={`tel:${customer.phone}`}>{customer.phone}</a>
+          {Object.entries(customer.metadata).map(([k, v]) => (
+            <span key={k} className="chip">{k}: {String(v)}</span>
+          ))}
+        </div>
+      )}
       {error && <p className="error">{error}</p>}
       <div className="timeline" ref={listRef}>
         {!ready && !error && <p className="muted">Loading…</p>}

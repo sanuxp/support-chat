@@ -1,3 +1,5 @@
+export interface CustomerInfo { name: string; email: string; phone: string; metadata: Record<string, string | number | boolean> }
+
 export interface ConversationRow {
   roomId: string;
   status: "waiting" | "assigned" | string;
@@ -5,6 +7,7 @@ export interface ConversationRow {
   reason: string | null;
   summary: string | null;
   updatedAt: string;
+  customer?: CustomerInfo;
 }
 
 function ago(iso: string): string {
@@ -18,8 +21,8 @@ function Row({ c, onOpen, label }: { c: ConversationRow; onOpen: () => void; lab
   return (
     <li className="row" onClick={onOpen}>
       <div className="row-main">
-        <strong>{c.reason || "Conversation"}</strong>
-        <span className="muted"> · {ago(c.updatedAt)}</span>
+        <strong>{c.customer?.name ?? "Customer"}</strong>
+        <span className="muted"> · {c.reason || "Conversation"} · {ago(c.updatedAt)}</span>
         {c.summary && <p className="summary">{c.summary}</p>}
       </div>
       <button onClick={(e) => { e.stopPropagation(); onOpen(); }}>{label}</button>
