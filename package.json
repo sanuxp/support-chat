@@ -7,7 +7,11 @@
     "smoke-test": "tsx scripts/smoke-test.ts",
     "e2e:escalation": "tsx scripts/e2e-escalation.ts",
     "e2e:tools": "tsx scripts/e2e-tools.ts",
-    "e2e:ui": "node scripts/ui-e2e.mjs"
+    "e2e:ui": "node scripts/ui-e2e.mjs",
+    "typecheck": "npm --prefix agent-ui run typecheck && npm --prefix widget run typecheck",
+    "test": "npm --prefix agent-ui test && npm --prefix widget test",
+    "check": "npm run typecheck && npm test",
+    "prepare": "git config core.hooksPath .githooks || exit 0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
