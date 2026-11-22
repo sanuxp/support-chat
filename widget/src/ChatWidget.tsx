@@ -52,6 +52,9 @@ export function ChatWidget({ opts }: { opts: WidgetOptions }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const connecting = useRef(false);
+  const fabRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const wasOpen = useRef(false);
 
   const start = useCallback(async () => {
     if (connecting.current) return;
@@ -103,6 +106,12 @@ export function ChatWidget({ opts }: { opts: WidgetOptions }) {
     if (el) el.scrollTop = el.scrollHeight;
   }, [lines, typing, open]);
 
+  // focus management: into the dialog on open, back to the launcher on close
+  useEffect(() => {
+    if (open) { wasOpen.current = true; inputRef.current?.focus(); }
+    else if (wasOpen.current) { wasOpen.current = false; fabRef.current?.focus(); }
+  }, [open, conn]);
+
   // stop the client when the page goes away
   useEffect(() => () => conn?.client.stopClient(), [conn]);
 
@@ -132,31 +141,31 @@ export function ChatWidget({ opts }: { opts: WidgetOptions }) {
   return (
     <div className="sc-root">
       {open && (
-        <div className="sc-panel" role="dialog" aria-label="Support chat">
+        <div className="sc-panel" role="dialog" aria-label={opts.title ?? "Support chat"} onKeyDown={(e) => { if (e.key === "Escape") { if (confirmDelete) setConfirmDelete(false); else setOpen(false); } }}>
           <div className="sc-header">
-            <span>{opts.title ?? "Support"}</span>
+            <h2 className="sc-title">{opts.title ?? "Support"}</h2>
             <div className="sc-header-actions">
-              {conn && !ended && <button className="sc-link" onClick={() => setConfirmDelete(true)}>Delete</button>}
-              <button className="sc-link" onClick={() => setOpen(false)} aria-label="Close">✕</button>
+              {conn && !ended && <button className="sc-link" onClick={() => setConfirmDelete(true)}>Delete conversation</button>}
+              <button className="sc-link" onClick={() => setOpen(false)} aria-label="Close support chat"><span aria-hidden="true">✕</span></button>
             </div>
           </div>
           {confirmDelete && (
-            <div className="sc-confirm">
+            <div className="sc-confirm" role="alertdialog" aria-label="Confirm delete">
               Delete this conversation permanently?
               <div>
-                <button onClick={doDelete}>Delete</button>
+                <button onClick={doDelete} autoFocus>Delete</button>
                 <button className="sc-secondary" onClick={() => setConfirmDelete(false)}>Cancel</button>
               </div>
             </div>
           )}
-          <div className="sc-messages" ref={listRef}>
+          <div className="sc-messages" ref={listRef} role="log" aria-live="polite" aria-label="Messages" tabIndex={0}>
             {!conn && !error && <div className="sc-system">Connecting…</div>}
-            {error && <div className="sc-system sc-error">{error}</div>}
+            {error && <div className="sc-system sc-error" role="alert">{error}</div>}
             {lines.length === 0 && conn && <div className="sc-system">Hi! Ask us anything.</div>}
             {lines.map((l) => (
-              <div key={l.id} className={`sc-line sc-${l.kind}`}>{l.body}</div>
+              <div key={l.id} className={`sc-line sc-${l.kind}`}>{l.kind === "own" && <span className="sc-sr">You: </span>}{l.kind === "other" && <span className="sc-sr">Support: </span>}{l.body}</div>
             ))}
-            {typing && <div className="sc-typing" aria-live="polite">typing…</div>}
+            {typing && <div className="sc-typing" role="status">Support is typing…</div>}
             {status === "waiting" && <div className="sc-system">Waiting for a team member to join…</div>}
             {ended && <div className="sc-system">This conversation has ended.</div>}
           </div>
@@ -165,6 +174,7 @@ export function ChatWidget({ opts }: { opts: WidgetOptions }) {
           ) : (
             <form className="sc-footer" onSubmit={(e) => { e.preventDefault(); void send(); }}>
               <input
+                ref={inputRef}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 placeholder="Type a message…"
@@ -177,7 +187,7 @@ export function ChatWidget({ opts }: { opts: WidgetOptions }) {
         </div>
       )}
       {!open && (
-        <button className="sc-fab" onClick={() => setOpen(true)} aria-label="Open support chat">💬</button>
+        <button className="sc-fab" ref={fabRef} onClick={() => setOpen(true)} aria-label="Open support chat"><span aria-hidden="true">💬</span></button>
       )}
     </div>
   );

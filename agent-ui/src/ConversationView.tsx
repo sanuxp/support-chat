@@ -101,24 +101,24 @@ export function ConversationView({
   return (
     <div className="conv">
       <header>
-        <button className="secondary" onClick={onClose}>← Back</button>
+        <button className="secondary" onClick={onClose}><span aria-hidden="true">← </span>Back to queue</button>
         <div className="spacer" />
-        <button disabled={busy || ended} onClick={() => resolve(true)}>Resolve → back to AI</button>
+        <button disabled={busy || ended} onClick={() => resolve(true)}>Resolve and return to AI</button>
         <button className="secondary" disabled={busy || ended} onClick={() => resolve(false)}>Resolve &amp; close</button>
       </header>
-      {error && <p className="error">{error}</p>}
-      <div className="timeline" ref={listRef}>
-        {!ready && !error && <p className="muted">Loading…</p>}
+      {error && <p className="error" role="alert">{error}</p>}
+      <div className="timeline" ref={listRef} role="log" aria-live="polite" aria-label="Conversation messages" tabIndex={0}>
+        {!ready && !error && <p className="muted" role="status">Loading…</p>}
         {lines.map((l) => (
           <div key={l.id} className={`msg ${l.who}`}>
-            <div className="who">{l.name}</div>
+            <div className="who">{l.name}<span className="sr-only">:</span></div>
             <div className="body">{l.body}</div>
           </div>
         ))}
         {ended && ready && <p className="muted center">You are no longer assigned to this conversation.</p>}
       </div>
       <form className="composer" onSubmit={(e) => { e.preventDefault(); void send(); }}>
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Reply to the customer…" disabled={!ready || ended} />
+        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Reply to the customer…" aria-label="Reply to the customer" disabled={!ready || ended} />
         <button type="submit" disabled={!ready || ended || !text.trim()}>Send</button>
       </form>
     </div>

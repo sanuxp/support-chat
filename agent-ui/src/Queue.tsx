@@ -22,7 +22,7 @@ function Row({ c, onOpen, label }: { c: ConversationRow; onOpen: () => void; lab
         <span className="muted"> · {ago(c.updatedAt)}</span>
         {c.summary && <p className="summary">{c.summary}</p>}
       </div>
-      <button onClick={(e) => { e.stopPropagation(); onOpen(); }}>{label}</button>
+      <button onClick={(e) => { e.stopPropagation(); onOpen(); }}>{label}<span className="sr-only"> conversation: {c.reason || "Conversation"}</span></button>
     </li>
   );
 }
@@ -32,13 +32,13 @@ export function Queue({ rows, onOpen, canTake }: { rows: ConversationRow[]; onOp
   const mine = rows.filter((r) => r.status === "assigned");
   return (
     <div className="queue">
-      <section>
-        <h2>My conversations <span className="count">{mine.length}</span></h2>
+      <section aria-labelledby="mine-h">
+        <h2 id="mine-h">My conversations <span className="count">{mine.length}</span></h2>
         {mine.length === 0 && <p className="muted">Nothing assigned to you.</p>}
         <ul>{mine.map((c) => <Row key={c.roomId} c={c} onOpen={() => onOpen(c.roomId)} label="Open" />)}</ul>
       </section>
-      <section>
-        <h2>Waiting <span className="count">{waiting.length}</span></h2>
+      <section aria-labelledby="wait-h">
+        <h2 id="wait-h">Waiting <span className="count">{waiting.length}</span></h2>
         {waiting.length === 0 && <p className="muted">The queue is empty.</p>}
         {!canTake && waiting.length > 0 && <p className="muted">Go online to take conversations.</p>}
         <ul>{waiting.map((c) => <Row key={c.roomId} c={c} onOpen={() => onOpen(c.roomId)} label={canTake ? "Take" : "View"} />)}</ul>

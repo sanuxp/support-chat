@@ -1,20 +1,27 @@
 :host { all: initial; }
 .sc-root { position: fixed; right: 20px; bottom: 20px; z-index: 2147483000; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: #1c2430; }
+.sc-root :focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
+.sc-header :focus-visible, .sc-own :focus-visible { outline-color: #fff; }
+.sc-fab:focus-visible { box-shadow: 0 0 0 2px #fff; }
+@media (prefers-reduced-motion: reduce) { .sc-root * { animation: none !important; transition: none !important; } }
+.sc-title { margin: 0; font: inherit; }
+.sc-sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .sc-fab { width: 56px; height: 56px; border-radius: 50%; border: 0; background: #2563eb; color: #fff; font-size: 24px; cursor: pointer; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
 .sc-panel { width: 360px; max-width: calc(100vw - 24px); height: 520px; max-height: calc(100vh - 40px); display: flex; flex-direction: column; background: #fff; border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,.28); overflow: hidden; position: relative; }
 .sc-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: #2563eb; color: #fff; font-weight: 600; }
 .sc-header-actions { display: flex; gap: 10px; }
-.sc-link { background: none; border: 0; color: #fff; cursor: pointer; font-size: 13px; padding: 0; }
+.sc-link { background: none; border: 0; color: #fff; cursor: pointer; font-size: 14px; padding: 4px 6px; min-height: 24px; min-width: 24px; }
+.sc-link:hover { text-decoration: underline; }
 .sc-messages { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; background: #f5f7fb; }
 .sc-line { max-width: 82%; padding: 8px 12px; border-radius: 14px; white-space: pre-wrap; word-wrap: break-word; }
 .sc-own { align-self: flex-end; background: #2563eb; color: #fff; border-bottom-right-radius: 4px; }
 .sc-other { align-self: flex-start; background: #fff; border: 1px solid #e3e8f0; border-bottom-left-radius: 4px; }
 .sc-notice { align-self: center; font-style: italic; color: #5b6575; background: transparent; }
-.sc-system { align-self: center; color: #6b7686; font-size: 12px; text-align: center; }
+.sc-system { align-self: center; color: #566070; font-size: 12px; text-align: center; }
 .sc-error { color: #b42318; }
-.sc-typing { align-self: flex-start; color: #6b7686; font-size: 12px; padding-left: 6px; }
+.sc-typing { align-self: flex-start; color: #566070; font-size: 12px; padding-left: 6px; }
 .sc-footer { display: flex; gap: 8px; padding: 10px; border-top: 1px solid #e3e8f0; background: #fff; }
-.sc-footer input { flex: 1; border: 1px solid #cfd6e3; border-radius: 8px; padding: 8px 10px; font: inherit; }
+.sc-footer input { flex: 1; border: 1px solid #7a8496; border-radius: 8px; padding: 8px 10px; font: inherit; }
 .sc-footer button, .sc-confirm button { background: #2563eb; color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; font: inherit; }
 .sc-footer button:disabled { opacity: .5; cursor: default; }
 .sc-secondary { background: #e3e8f0 !important; color: #1c2430 !important; margin-left: 8px; }

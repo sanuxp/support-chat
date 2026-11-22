@@ -81,18 +81,19 @@ export function App() {
 
   return (
     <div className="app">
+      <a className="skip-link" href="#main">Skip to main content</a>
       <header className="top">
-        <strong>Agent console</strong>
+        <h1 style={{ fontSize: "inherit", margin: 0 }}>Agent console</h1>
         <span className="muted">{session.userId}</span>
         <div className="spacer" />
-        <button className={online ? "online" : "secondary"} onClick={toggleOnline}>
-          <span className={`dot ${online ? "on" : ""}`} /> {online ? "Online" : "Offline"}
+        <button className={online ? "online" : "secondary"} onClick={toggleOnline} aria-pressed={online}>
+          <span className={`dot ${online ? "on" : ""}`} aria-hidden="true" /> {online ? "Online" : "Offline"}
         </button>
         <button className="secondary" onClick={() => doLogout(client)}>Sign out</button>
       </header>
-      {error && <p className="error banner" onClick={() => setError(null)}>{error}</p>}
-      <main>
-        {!client && <p className="muted">Connecting…</p>}
+      {error && <p className="error banner" role="alert"><span>{error}</span><button type="button" onClick={() => setError(null)}>Dismiss</button></p>}
+      <main id="main" tabIndex={-1}>
+        {!client && <p className="muted" role="status">Connecting…</p>}
         {client && open && (
           <ConversationView client={client} token={token} roomId={open} onClose={() => { setOpen(null); void refresh(); }} />
         )}
